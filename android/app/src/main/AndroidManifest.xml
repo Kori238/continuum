@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <!-- The link runs as a foreground service or Android kills it within
+         minutes.
+
+         specialUse, not connectedDevice: on Android 14 connectedDevice is only
+         granted if the app also holds a bluetooth/NFC/USB/CHANGE_WIFI_STATE
+         permission, and holding one of those purely to unlock a service type
+         would be a lie about what the app does. dataSync is the other near fit
+         but Android 15 caps it at six hours a day, which would silently kill an
+         always-on link. specialUse is untimed and honest. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- Wake-up alarms. All install-time (normal) permissions — none need a
+         runtime grant, so unlike the Health Connect reads the user does NOT
+         re-grant anything after this update. SCHEDULE_EXACT_ALARM covers API
+         31/32 (auto-granted); USE_EXACT_ALARM is its API 33+ successor for an
+         app whose function is alarms. USE_FULL_SCREEN_INTENT lets the ringing
+         screen appear over the lock screen. MEDIA_PLAYBACK is the FGS type the
+         alarm sound plays under. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <!-- Reading the on-device hardware step counter. A runtime permission since
+         Android 10, so SetupActivity requests it alongside location. The step
+         counter is declared optional so a phone without the chip can still
+         install — Sensors.steps() simply reports nothing there. -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <uses-feature
+        android:name="android.hardware.sensor.stepcounter"
+        android:required="false" />
+
+    <!-- Reading exercise sessions from Health Connect (e.g. DownDog yoga). These
+         are the android.permission.health.* grants, given in Health Connect's own
+         UI — never a runtime prompt. Active calories let a session land with the
+         energy it burned, not just an interval. The recovery metrics below are
+         what a wrist wearable (the Fitbit Air) writes to Health Connect for the
+         Health tab. Every read permission MUST be declared here or Health Connect
+         can never grant it — an undeclared type silently keeps
+         HealthConnect.granted() false, so vitals() returns nothing forever. Keep
+         this list in step with the PERMISSIONS set in HealthConnect.kt. -->
+    <uses-permission android:name="android.permission.health.READ_EXERCISE" />
+    <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
+    <uses-permission android:name="android.permission.health.READ_SLEEP" />
+    <uses-permission android:name="android.permission.health.READ_RESTING_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE_VARIABILITY" />
+    <uses-permission android:name="android.permission.health.READ_OXYGEN_SATURATION" />
+    <uses-permission android:name="android.permission.health.READ_RESPIRATORY_RATE" />
+    <!-- Weight + body composition for the Body tab, from a smart scale (Renpho,
+         Withings, …) syncing to Health Connect. READ_WEIGHT alone covers a plain
+         scale; body fat / lean mass exist only if the scale measures them. -->
+    <uses-permission android:name="android.permission.health.READ_WEIGHT" />
+    <uses-permission android:name="android.permission.health.READ_BODY_FAT" />
+    <uses-permission android:name="android.permission.health.READ_LEAN_BODY_MASS" />
+
+    <!-- Needed to enumerate and launch arbitrary installed apps. Play restricts
+         this; we sideload, so it is available. -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+
+    <!-- Pulling and installing a new build from the desktop. The user still
+         confirms every install in the system installer, and must first grant
+         "install unknown apps"; this only lets the app hand over the APK. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!-- So we can detect/launch the Health Connect app on Android 12/13, where
+         it's a separate package rather than part of the OS, and resolve its
+         permissions-rationale intent. -->
+    <queries>
+        <package android:name="com.google.android.apps.healthdata" />
+        <intent>
+            <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+        </intent>
+    </queries>
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Continuum"
+        android:usesCleartextTraffic="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|density|uiMode">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity>
+
+        <activity
+            android:name=".SetupActivity"
+            android:exported="true"
+            android:label="Continuum setup">
+            <!-- Health Connect surfaces this as our privacy-rationale screen when
+                 the user reviews the app's health-data access (Android < 14). -->
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+        </activity>
+
+        <!-- Android 14+ routes the same rationale through VIEW_PERMISSION_USAGE
+             with the health category. Same destination (Setup), separate contract. -->
+        <activity-alias
+            android:name="ViewPermissionUsageActivity"
+            android:exported="true"
+            android:targetActivity=".SetupActivity"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
+
+        <service
+            android:name=".LinkService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Maintains the persistent link to the user's own Continuum
+                    desktop agent so it can read phone state and act on the device." />
+        </service>
+
+        <!-- Reading notifications. The user must grant this by hand in
+             Settings > Notification access; there is no runtime prompt. -->
+        <service
+            android:name=".NotificationRelay"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- Accessibility: foreground-app awareness, on-request screen reads, and
+             system global actions (back/home/recents/…). Like notification
+             access, it is granted by hand in Settings > Accessibility with no
+             runtime prompt. The BIND_ permission is held by the system and named
+             here so only the system can bind us. See res/xml/accessibility_service_config.xml
+             — gestures/element interaction are declared off there. -->
+        <service
+            android:name=".A11yService"
+            android:exported="true"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Wake-up alarms. The receiver is fired by AlarmManager; it hands off
+             to the service, which holds the wake lock, plays the sound (at the
+             volume rule) and shows the full-screen face over the lock screen.
+             All three are internal — only our own AlarmManager/PendingIntents
+             ever reach them, so exported=false. -->
+        <receiver
+            android:name=".AlarmReceiver"
+            android:exported="false" />
+
+        <service
+            android:name=".AlarmService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <activity
+            android:name=".AlarmActivity"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:excludeFromRecents="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@style/Theme.Continuum" />
+
+        <!-- Home-screen routine widget. exported=false: only the system's
+             AppWidget host ever broadcasts APPWIDGET_UPDATE to it, and the
+             desktop drives real refreshes over the link, not via broadcast.
+             See RoutineWidget.kt and res/xml/routine_widget_info.xml. -->
+        <receiver
+            android:name=".RoutineWidget"
+            android:exported="false"
+            android:label="@string/widget_label"
+            android:description="@string/widget_description">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/routine_widget_info" />
+        </receiver>
+
+        <!-- Hands the downloaded APK to the system installer over a content://
+             URI; a file:// URI throws FileUriExposedException on modern Android.
+             See Updater.kt and res/xml/file_paths.xml. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+</manifest>

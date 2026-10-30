@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Configures A11yService. Deliberately narrow:
+
+     - typeWindowStateChanged is the only event we subscribe to — enough to know
+       which app is in front, nothing about what you type or touch inside it.
+     - canRetrieveWindowContent is on so `ui_observe` can read the on-screen text
+       tree when asked; it is read-only.
+     - canPerformGestures is OFF, on purpose. Gesture dispatch (tapping/swiping
+       into specific elements) is the invasive half Jake has left disabled, so we
+       state plainly that this service cannot do it. Global actions (back/home/
+       recents/…) go through performGlobalAction and need no such flag. -->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:canRetrieveWindowContent="true"
+    android:canPerformGestures="false"
+    android:description="@string/a11y_description"
+    android:notificationTimeout="100" />

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen routine widget. updatePeriodMillis is 0: refreshes are pushed
+     from the desktop over the link, so Android's 30-minute timer is neither
+     needed nor wanted. previewLayout (API 31+) reuses the real layout as the
+     picker preview, so no separate preview drawable to keep in sync. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="180dp"
+    android:minHeight="72dp"
+    android:targetCellWidth="3"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/widget_routine"
+    android:previewLayout="@layout/widget_routine"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen" />

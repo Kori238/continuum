@@ -1,0 +1,52 @@
+.venv/
+__pycache__/
+*.pyc
+data/
+*.egg-info/
+.env
+_app.out.log
+_app.err.log
+_serve.out.log
+_serve.err.log
+*.log
+
+# One-off probes, backups and stray shell-redirect artifacts, all of which live
+# at the repo root. Scoped to the root with a leading slash so real files in
+# subdirectories still get tracked.
+/_*
+
+# ...but not the test harnesses, which the rule above swallowed whole when it
+# was added. They are the verification suite - budget 48 checks, phone 41,
+# desktop client 30, the registry's fail-closed store guard - not scratch work.
+# Leaving them untracked meant the one thing that proves a change is safe lived
+# only on whichever machine happened to run it last.
+!/_*_test.py
+!/_*_test.mjs
+!/_route_e2e.py
+
+# Nor the negative controls, which are the tests ON the tests: they mutate a source
+# file, require the suite to catch it, and restore. Deliberately NOT named *_test.py,
+# because a runner that globs the suite must not pick them up - each one runs the
+# whole suite several times over. They belong in the repo for the same reason the
+# suite does: "the test passed" means nothing until something proves it can fail.
+!/_negctl_*.py
+
+# Nor the probes. These measure behaviour rather than assert it - the pacing
+# probe answers "do the meters actually move over a playthrough", the voice
+# probe answers "is this character any good to talk to". Both were force-added
+# past the /_* rule at some point without being recorded here, which is how a
+# verification tool quietly becomes a single-machine artifact.
+!/_*_probe.py
+
+# Nor the boot path, which the same rule swallowed. This is what the Startup
+# shortcut actually runs, and it carries the --hub flags that keep this machine
+# a client instead of standing up a second diverging Continuum with its own
+# database. Losing it loses the desktop client at every login - and a client
+# that stops reporting is a budget that silently stops measuring.
+!/_autostart.vbs
+
+/@AutomationLog.txt
+/$null
+/2053
+/305
+/375

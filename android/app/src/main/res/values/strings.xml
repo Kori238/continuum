@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Continuum</string>
+    <string name="shortcut_setup">Setup</string>
+    <string name="a11y_description">Lets Continuum see which app is in front (for your activity timeline), read the on-screen text on request, and press system buttons like back, home and recents. It never taps or types inside your apps.</string>
+    <string name="widget_label">Routine</string>
+    <string name="widget_description">Your next routine item and today\'s progress, at a glance.</string>
+</resources>

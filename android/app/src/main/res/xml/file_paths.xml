@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Where Updater writes the downloaded APK before handing it to the
+         system installer (cacheDir/updates/). -->
+    <cache-path name="updates" path="updates/" />
+</paths>

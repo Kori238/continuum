@@ -1,0 +1,49 @@
+[project]
+name = "continuum"
+version = "0.0.1"
+description = "A personal operating system: an event-driven fabric of devices, context, and models."
+requires-python = ">=3.10"
+dependencies = [
+    "anthropic>=0.40",   # cloud tier (API-key path; CLI path needs no SDK)
+    "httpx>=0.27",       # HTTP for the MCP probe, the phone link and the food/health APIs
+    "fastembed>=0.8",    # memory: the in-process embedder (ONNX — deliberately pulls no torch)
+    "numpy>=1.24",       # memory: cosine similarity over embedding vectors
+    "psutil>=5.9",       # live state: process detail + system metrics
+    "mss>=9.0",          # screen capture for see_screen (no image library needed)
+    "ddgs>=9.0",         # web_search — metasearch, no API key
+    "trafilatura>=2.0",  # fetch_url — main-text extraction, so pages arrive readable
+    "lxml_html_clean",   # trafilatura's HTML cleaner, split out of lxml upstream
+    "icalendar>=6.0",              # calendar: parse the private ICS feed
+    "recurring-ical-events>=3.0",  # …and expand RRULE, or repeats never appear
+    "winsdk>=1.0; sys_platform == 'win32'",  # now-playing media via WinRT (optional at runtime)
+    "uiautomation>=2.0; sys_platform == 'win32'",  # read on-screen Discord/Slack messages (optional)
+]
+
+[project.optional-dependencies]
+# The desktop control app (native window + live event stream over the bus).
+app = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "pywebview>=5.0",     # native window; falls back to the browser if absent
+]
+# NATS transport, added when Continuum spans more than one device.
+nats = ["nats-py>=2.6"]
+
+[project.scripts]
+continuum = "continuum.__main__:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["continuum*"]
+
+# The web UI is data, not code, and `packages.find` only finds code — so an
+# installed copy got every .py file and none of index.html/app.js/app.css, and
+# `create_app()` died mounting a static directory that wasn't there. Invisible on
+# Windows, where Continuum runs from the source tree and `static/` is simply
+# present; it only surfaces the first time the package is genuinely installed,
+# i.e. on the cloud box. Found by installing into a Linux venv, not by reading.
+[tool.setuptools.package-data]
+"continuum.app" = ["static/*", "static/**/*"]

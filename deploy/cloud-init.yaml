@@ -1,0 +1,64 @@
+#cloud-config
+# Continuum hub — first-boot config for a Hetzner CX23 (Ubuntu 26.04 LTS).
+#
+# Paste into Hetzner's "Cloud config" box at server-create time, AFTER replacing
+# TS_AUTHKEY_PLACEHOLDER below. Nothing here is secret except that one line.
+#
+# Why this file exists: no Hetzner firewall is attached, deliberately. Continuum
+# binds 127.0.0.1 (server.py:2368) and is carried over the tailnet by
+# `tailscale serve`, so it has no public port to protect. That leaves sshd as the
+# ENTIRE public attack surface — and because security.py trusts loopback by
+# design, SSH access is total Continuum access. Hence: key-only, no root, no
+# passwords, and Tailscale up before anything else.
+#
+# Port 22 is left publicly reachable on purpose. Locking it to the tailnet here
+# would mean a failed `tailscale up` locks you out of your own box on first boot,
+# with root disabled and no password for Hetzner's VNC console either. Verify the
+# tailnet works first, then tighten (see the note at the bottom).
+
+hostname: continuum-hub
+
+users:
+  - name: jake
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    ssh_authorized_keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG22V/nHqMZEZXksA4IF/1stLBC3F952epkTJqwt5AFC jake@continuum-hub
+
+# Keys only. Both matter: the first stops brute-forcing, the second means a
+# stolen key still isn't root.
+ssh_pwauth: false
+disable_root: true
+
+package_update: true
+package_upgrade: true
+packages:
+  - git
+  - curl
+  - python3-venv
+  - python3-pip
+  # 26.04 defaults to Python 3.14. onnxruntime 1.30 does publish cp314 wheels, so
+  # fastembed should install clean — but if any smaller dependency hasn't caught
+  # up, pip falls back to building from source and silently fails without these.
+  - python3-dev
+  - build-essential
+  - unattended-upgrades
+
+runcmd:
+  - [sh, -c, "curl -fsSL https://tailscale.com/install.sh | sh"]
+  # Single-use key: it is consumed here, which is what makes it safe to leave in
+  # user-data (cloud-init keeps that readable at
+  # /var/lib/cloud/instance/user-data.txt for the life of the machine).
+  - [tailscale, up, --auth-key=TS_AUTHKEY_PLACEHOLDER, --hostname=continuum-hub]
+  - [systemctl, enable, --now, unattended-upgrades]
+
+# AFTER first boot, once `tailscale status` shows the box on the tailnet:
+#
+#   1. In the Tailscale admin console, DISABLE KEY EXPIRY for continuum-hub.
+#      Node keys expire every 180 days by default — an always-on hub would
+#      silently drop off the tailnet six months from now and take your only
+#      route in with it.
+#   2. Then close public SSH, so the tailnet really is the only way in:
+#        sudo ufw allow in on tailscale0
+#        sudo ufw enable

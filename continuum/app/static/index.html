@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <!-- Second line of defence behind escapeHtml. Device-supplied strings (a phone's
+       self-chosen name, an event topic) land in innerHTML all over this page, and
+       one missed call site is all it takes. `script-src 'self'` means an injected
+       `<img onerror=…>` or inline handler simply does not run, whoever forgot to
+       escape it. Inline *styles* stay allowed — they're not an execution vector
+       and the markup uses a few. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'; form-action 'none'" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Continuum</title>
+  <meta name="theme-color" content="#0a1519" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/static/icon-192.png" />
+  <link rel="apple-touch-icon" href="/static/icon-192.png" />
+  <link rel="stylesheet" href="/static/app.css" />
+  <link rel="stylesheet" href="/static/mobile.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">◈</span>
+      <div>
+        <div class="title">Continuum</div>
+        <div class="subtitle">personal operating system</div>
+      </div>
+    </div>
+    <nav class="sectionnav" id="sectionnav">
+      <button class="section active" data-section="mind">🧠 Mind</button>
+      <button class="section" data-section="life">🌱 Life</button>
+    </nav>
+    <div class="status" id="status">
+      <span class="pill" id="pill-conn"><i class="dot"></i> connecting…</span>
+      <span class="pill" id="pill-fast"><i class="dot"></i> fast</span>
+      <span class="pill" id="pill-cloud"><i class="dot"></i> cloud</span>
+      <span class="pill" id="pill-memory"><i class="dot"></i> memory</span>
+    </div>
+  </header>
+
+  <!-- Second-level nav: the subtabs for the active section. Keeps the .tabnav
+       class so its desktop styling and the mobile bottom-bar treatment both
+       still apply; switchSection() shows only the active section's buttons and
+       hides the rest with [hidden]. -->
+  <nav class="tabnav" id="tabnav">
+    <button class="tab active" data-section="mind" data-view="dash-mind">▦ Dashboard</button>
+    <button class="tab" data-section="mind" data-view="chat">💬 Chat</button>
+    <button class="tab" data-section="mind" data-view="messages">✉ Messages</button>
+    <button class="tab" data-section="mind" data-view="state">📊 State</button>
+    <button class="tab" data-section="mind" data-view="memory">🧠 Memory</button>
+    <button class="tab" data-section="life" data-view="dash-life" hidden>▦ Dashboard</button>
+    <button class="tab" data-section="life" data-view="routine" hidden>🗓 Routine</button>
+    <button class="tab" data-section="life" data-view="workouts" hidden>🏋 Workouts</button>
+    <button class="tab" data-section="life" data-view="nutrition" hidden>🍎 Nutrition</button>
+    <button class="tab" data-section="life" data-view="body" hidden>⚖ Body</button>
+    <button class="tab" data-section="life" data-view="health" hidden>❤ Health</button>
+    <button class="tab" data-section="life" data-view="flashcards" hidden>🃏 Flashcards</button>
+    <button class="tab" data-section="life" data-view="alarms" hidden>⏰ Alarms</button>
+    <button class="tab" data-section="life" data-view="activity" hidden>🕘 Activity</button>
+    <button class="tab" data-section="life" data-view="budget" hidden>⏳ Budget</button>
+  </nav>
+
+  <main class="views">
+
+    <!-- ===================== MIND DASHBOARD ===================== -->
+    <!-- Section overview: summary tiles that deep-link into each Mind subtab. -->
+    <section class="view active" id="view-dash-mind">
+      <section class="panel dash">
+        <div class="dash-head"><h2>Mind</h2><span class="dash-sub">chat · messages · state · memory</span></div>
+        <div class="dash-grid" id="dash-mind-grid"><div class="empty">loading…</div></div>
+      </section>
+    </section>
+
+    <!-- ===================== LIFE DASHBOARD ===================== -->
+    <section class="view" id="view-dash-life">
+      <section class="panel dash">
+        <div class="dash-head"><h2>Life</h2><span class="dash-sub">routine · workouts · nutrition · activity</span></div>
+        <div class="dash-dials" id="dash-life-dials"></div>
+        <div class="dash-grid" id="dash-life-grid"><div class="empty">loading…</div></div>
+      </section>
+    </section>
+
+    <!-- ===================== CHAT ===================== -->
+    <section class="view" id="view-chat">
+      <section class="panel console">
+        <div class="conv-head">
+          <h2 id="conv-title">New conversation</h2>
+          <button class="conv-btn" id="nudge-btn" title="ask Continuum if it has anything to say right now">💭</button>
+          <button class="conv-btn" id="conv-history-btn" title="conversation history">🕘 history</button>
+          <button class="conv-btn primary" id="conv-new-btn" title="start a new conversation">＋ New</button>
+        </div>
+        <div class="conv-tabs" id="conv-tabs"></div>
+        <div class="conv-list" id="conv-list" style="display:none"></div>
+        <div class="thread" id="thread"><div class="empty">Start a conversation — ask Continuum anything.</div></div>
+        <div class="ask-panel" id="ask-panel" hidden></div>
+        <form id="task-form" class="task-form">
+          <textarea id="prompt" rows="2" placeholder="Message Continuum…  (Ctrl+Enter to send)"></textarea>
+          <div id="attach-strip" class="attach-strip" hidden></div>
+          <input type="file" id="attach-input" accept="image/*" multiple hidden />
+          <div class="controls">
+            <button type="button" id="attach-btn" class="attach-btn" title="Attach an image — a recipe, a label, a photo of something">📎 image</button>
+            <label class="seg">
+              complexity
+              <select id="complexity">
+                <option value="low">low → local</option>
+                <option value="high" selected>high → cloud</option>
+              </select>
+            </label>
+            <label class="chk">
+              <input type="checkbox" id="sensitive" />
+              <span>sensitive</span>
+            </label>
+            <label class="chk">
+              <input type="checkbox" id="tools" />
+              <span title="let Continuum call tools (inspect apps, recall memory) to gather detail">🔧 tools</span>
+            </label>
+            <label class="chk">
+              <input type="checkbox" id="actions" />
+              <span title="let Continuum TAKE actions (notify, open URLs/apps) — on by default; every action is logged">⚡ actions</span>
+            </label>
+            <label class="chk">
+              <input type="checkbox" id="proactive" />
+              <span title="let Continuum speak up on its own on the heartbeat — off by default, cooldown + quiet hours">🌱 proactive</span>
+            </label>
+            <label class="chk">
+              <input type="checkbox" id="dev" />
+              <span title="let Continuum read/edit/run/restart its OWN source code — repo-jailed, on by default, every action logged">🛠 self-dev</span>
+            </label>
+            <button type="submit" id="submit">Send</button>
+          </div>
+        </form>
+      </section>
+    </section>
+
+    <!-- ===================== ROUTINE ===================== -->
+    <section class="view" id="view-routine">
+      <div class="rtab-nav" id="rtab-nav">
+        <button class="rtab active" data-rtab="today">Today</button>
+        <button class="rtab" data-rtab="performance">Performance</button>
+      </div>
+
+      <div class="rtab-view active" id="rtab-today">
+      <div class="routine-wrap">
+        <section class="panel routine-today">
+          <div class="rt-head">
+            <h2>Today <span class="rt-date" id="rt-date"></span></h2>
+            <div class="rt-progress">
+              <div class="rt-bar"><span id="rt-bar-fill"></span></div>
+              <span class="rt-progress-label" id="rt-progress-label">0/0</span>
+            </div>
+          </div>
+          <div class="rt-list" id="rt-today"><div class="empty">nothing on today's routine yet…</div></div>
+        </section>
+
+        <div class="routine-side">
+          <section class="panel todos">
+            <h2>To-do <span class="count" id="todo-count">0</span></h2>
+            <form id="todo-form" class="todo-form">
+              <input id="todo-title" type="text" placeholder="add a task… (carries over until done)" />
+              <button type="submit">＋</button>
+            </form>
+            <div class="todo-list" id="todo-list"><div class="empty">nothing to do 🎉</div></div>
+          </section>
+
+          <section class="panel routine-manage">
+            <h2>All routines <span class="count" id="rt-count">0</span></h2>
+            <form id="rt-form" class="rt-form">
+              <input id="rt-title" type="text" placeholder="new routine… e.g. Morning pages" />
+              <div class="rt-form-row">
+                <input id="rt-time" type="text" class="rt-time" placeholder="time e.g. 7:30am" />
+                <select id="rt-kind" title="kind">
+                  <option value="habit">✓ habit</option>
+                  <option value="block">▦ block</option>
+                  <option value="reminder">🔔 reminder</option>
+                </select>
+                <select id="rt-days" title="which days">
+                  <option value="daily">daily</option>
+                  <option value="weekdays">weekdays</option>
+                  <option value="weekends">weekends</option>
+                </select>
+                <select id="rt-section" title="part of day">
+                  <option value="morning">morning</option>
+                  <option value="afternoon">afternoon</option>
+                  <option value="evening">evening</option>
+                  <option value="night">night</option>
+                  <option value="anytime">anytime</option>
+                </select>
+                <input id="rt-repeat" type="number" min="0" class="rt-repeat" placeholder="↻ days" title="repeat every N days after done (e.g. 7 = weekly); carries over until done" />
+                <button type="submit">＋</button>
+              </div>
+            </form>
+            <div class="rt-all" id="rt-all"><div class="empty">no routines defined</div></div>
+          </section>
+        </div>
+      </div>
+      </div><!-- /rtab-today -->
+
+      <div class="rtab-view" id="rtab-performance">
+        <div class="perf-wrap">
+          <section class="panel perf-overview">
+            <div class="perf-head">
+              <h2>Performance <span class="perf-since" id="perf-since"></span></h2>
+              <div class="perf-range" id="perf-range">
+                <button data-days="7">7d</button>
+                <button data-days="30" class="active">30d</button>
+                <button data-days="90">90d</button>
+              </div>
+            </div>
+            <div class="perf-stat" id="perf-stat"></div>
+            <div class="perf-trend-wrap">
+              <div class="perf-trend-label">daily completion</div>
+              <div class="perf-trend" id="perf-trend"></div>
+            </div>
+          </section>
+          <section class="panel perf-tasks">
+            <h2>By task</h2>
+            <div class="perf-list" id="perf-list"><div class="empty">no history yet</div></div>
+          </section>
+        </div>
+      </div><!-- /rtab-performance -->
+    </section>
+
+    <!-- ===================== MESSAGES ===================== -->
+    <section class="view" id="view-messages">
+      <section class="panel messages">
+        <h2>Messages <span class="count" id="msg-count">0</span>
+          <input id="msg-search" type="text" class="msg-search" placeholder="🔍 search messages…" />
+        </h2>
+        <div class="msg-feed" id="msg-feed"><div class="empty">no messages logged yet…</div></div>
+      </section>
+    </section>
+
+    <!-- ===================== STATE ===================== -->
+    <section class="view" id="view-state">
+      <div class="state-wrap">
+        <section class="panel livestate">
+          <h2>Live state <span class="count" id="st-count">0</span><span class="st-time" id="st-time"></span></h2>
+          <div class="st-status" id="st-status"></div>
+          <div class="st-metrics" id="st-metrics"></div>
+          <div class="st-activity" id="st-activity"></div>
+          <div class="st-apps" id="st-apps"><div class="empty">reading machine state…</div></div>
+          <div class="st-browser" id="st-browser"></div>
+        </section>
+        <div class="state-side">
+          <!-- Power lives beside Device fabric because that panel already
+               answers "is the desk reachable", which is exactly what decides
+               whether these buttons can do anything. Each one arms on first tap
+               and fires on the second: these are the only controls in the app
+               that cost real work if a pocket taps them, and a WebView cannot be
+               relied on to raise a native confirm() dialog. -->
+          <section class="panel power">
+            <h2>Power <span class="st-time" id="pw-where"></span></h2>
+            <div class="pw-buttons">
+              <button class="pw-btn" id="pw-wake" data-verb="wake">⏻ Wake</button>
+              <button class="pw-btn" id="pw-sleep" data-verb="sleep">🌙 Sleep</button>
+              <button class="pw-btn" id="pw-restart" data-verb="restart">↻ Restart</button>
+            </div>
+            <div class="pw-note" id="pw-note"></div>
+          </section>
+          <section class="panel fabric">
+            <h2>Device fabric</h2>
+            <div class="devices" id="devices"><div class="empty">no devices yet</div></div>
+          </section>
+          <section class="panel stream">
+            <h2>Event stream <span class="count" id="ev-count">0</span></h2>
+            <div class="events" id="events"></div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== MEMORY ===================== -->
+    <section class="view" id="view-memory">
+      <div class="memory-wrap">
+        <section class="panel memory">
+          <h2>Memory <span class="count" id="mem-count">0</span></h2>
+          <div class="core">
+            <div class="core-label">Core profile <span class="hint">📌 always in context</span></div>
+            <textarea id="core-text" rows="2" placeholder="pinned facts, always injected — e.g. Name: Jake. Timezone: Europe/London. Prefers concise, direct answers."></textarea>
+            <button id="core-save" type="button">Save profile</button>
+          </div>
+          <label class="ax-toggle">
+            <input type="checkbox" id="ax" />
+            <span>auto-learn facts from conversation</span>
+          </label>
+          <form id="mem-form" class="mem-form">
+            <input id="mem-input" type="text" placeholder="remember a fact…" />
+            <select id="mem-scope" title="who this memory is for">
+              <option value="global">🌐 global</option>
+              <option value="conversation">💬 this chat</option>
+            </select>
+            <button type="submit" title="store">＋</button>
+          </form>
+          <input id="mem-search" type="text" class="mem-search" placeholder="🔍 semantic recall…" />
+          <div class="mem-list" id="mem-list"><div class="empty">no memories yet</div></div>
+        </section>
+
+        <section class="panel schedule">
+          <h2>⏰ Scheduled <span class="count" id="sched-count">0</span></h2>
+          <div class="sched-list" id="sched-list"><div class="empty">nothing scheduled</div></div>
+        </section>
+      </div>
+    </section>
+
+    <!-- ===================== WORKOUTS ===================== -->
+    <!-- Non-AI explorer: reads /api/workouts/* directly, no model in the loop. -->
+    <section class="view" id="view-workouts">
+      <div class="workout-wrap">
+        <section class="panel workout-overview">
+          <div class="wo-head">
+            <h2>Workouts <span class="wo-sub" id="wo-sub"></span></h2>
+            <div class="wo-controls">
+              <div class="wo-range" id="wo-range">
+                <button data-days="30">30d</button>
+                <button data-days="90" class="active">90d</button>
+                <button data-days="365">1y</button>
+              </div>
+              <button class="wo-sync" id="wo-sync" title="pull the latest sessions from Speediance">⟳ Sync</button>
+            </div>
+          </div>
+          <div class="wo-stat" id="wo-stat"></div>
+          <div class="wo-chart-wrap">
+            <div class="wo-chart-head"><span class="wo-chart-label">volume per session</span><span class="wo-chart-unit">kg</span></div>
+            <div class="wo-bars" id="wo-vol-chart"><div class="empty">no sessions in this window</div></div>
+          </div>
+          <div class="wo-chart-wrap">
+            <div class="wo-chart-head"><span class="wo-chart-label">muscle distribution</span><span class="wo-chart-unit">sets</span></div>
+            <div class="wo-muscles" id="wo-muscles"><div class="empty">no muscle data in this window</div></div>
+          </div>
+          <div class="wo-sessions-label">sessions</div>
+          <div class="wo-sessions" id="wo-sessions"><div class="empty">no workouts yet — hit Sync to pull from Speediance</div></div>
+        </section>
+
+        <section class="panel workout-exercise">
+          <h2>Exercise progress</h2>
+          <select id="wo-ex-picker" class="wo-ex-picker"><option value="">choose an exercise…</option></select>
+          <div class="wo-ex-body" id="wo-ex-body"><div class="empty">pick an exercise to chart your progression over time</div></div>
+        </section>
+      </div>
+    </section>
+
+    <!-- ===================== NUTRITION ===================== -->
+    <!-- Non-AI explorer: reads/writes /api/nutrition/* directly, no model in the
+         loop. Calorie + macro intake diary; the food picker queries the USDA
+         food database via /api/nutrition/search. -->
+    <section class="view" id="view-nutrition">
+      <div class="nut-wrap">
+        <section class="panel nut-day">
+          <div class="nut-head">
+            <h2>Nutrition <span class="nut-sub" id="nut-sub"></span></h2>
+            <button class="nut-goals-btn" id="nut-goals-btn" title="set your daily targets">🎯 goals</button>
+          </div>
+
+          <div class="nut-goals" id="nut-goals" hidden>
+            <div class="nut-goals-row">
+              <label>kcal <input type="number" id="goal-cal" min="0" placeholder="2200" /></label>
+              <label>protein <input type="number" id="goal-pro" min="0" placeholder="160" /></label>
+              <label>carbs <input type="number" id="goal-carb" min="0" placeholder="220" /></label>
+              <label>fat <input type="number" id="goal-fat" min="0" placeholder="70" /></label>
+              <button type="button" id="nut-goals-save">Save</button>
+            </div>
+          </div>
+
+          <div class="nut-daybar">
+            <button class="nut-nav" id="nut-prev" title="previous day">‹</button>
+            <span class="nut-date" id="nut-date"></span>
+            <button class="nut-nav" id="nut-next" title="next day">›</button>
+            <button class="nut-today" id="nut-today" title="jump to today">today</button>
+          </div>
+
+          <div class="nut-stat" id="nut-stat"></div>
+
+          <div class="nut-entries-label">what you ate</div>
+          <div class="nut-entries" id="nut-entries"><div class="empty">nothing logged for this day yet…</div></div>
+        </section>
+
+        <div class="nut-right">
+        <section class="panel nut-log">
+          <h2>Log food <span class="nut-provider" id="nut-provider" title="which food database is answering"></span></h2>
+          <div class="nut-search-wrap">
+            <input id="nut-search" type="text" placeholder="🔍 search foods… e.g. chicken breast, banana" autocomplete="off" />
+            <div class="nut-results" id="nut-results"></div>
+          </div>
+          <div class="nut-barcode-wrap">
+            <input id="nut-barcode" type="text" inputmode="numeric" placeholder="🏷 barcode (UPC/EAN) — paste or type" autocomplete="off" />
+            <button type="button" id="nut-barcode-btn" title="look up this barcode via Open Food Facts">look up</button>
+          </div>
+          <div class="nut-barcode-msg" id="nut-barcode-msg" hidden></div>
+
+          <form id="nut-add-form" class="nut-add-form">
+            <input id="nut-name" type="text" class="nut-name" placeholder="food name (or pick from search)" autocomplete="off" />
+            <div class="nut-per100" id="nut-per100" hidden></div>
+            <div class="nut-add-grid">
+              <label>amount<input id="nut-qty" type="number" step="any" min="0" placeholder="100" /></label>
+              <label>unit<input id="nut-unit" type="text" placeholder="g" /></label>
+              <label>meal<select id="nut-meal">
+                <option value="">—</option>
+                <option value="breakfast">breakfast</option>
+                <option value="lunch">lunch</option>
+                <option value="dinner">dinner</option>
+                <option value="snack">snack</option>
+              </select></label>
+              <label>kcal<input id="nut-cal" type="number" step="any" min="0" placeholder="0" /></label>
+              <label>protein<input id="nut-pro" type="number" step="any" min="0" placeholder="0" /></label>
+              <label>carbs<input id="nut-carb" type="number" step="any" min="0" placeholder="0" /></label>
+              <label>fat<input id="nut-fat" type="number" step="any" min="0" placeholder="0" /></label>
+            </div>
+            <button type="submit" id="nut-add-btn">＋ Log it</button>
+          </form>
+
+          <div class="nut-trend-head">
+            <span class="nut-trend-label">daily calories</span>
+            <div class="nut-range" id="nut-range">
+              <button data-days="7" class="active">7d</button>
+              <button data-days="30">30d</button>
+            </div>
+          </div>
+          <div class="nut-trend" id="nut-trend"><div class="empty">log meals to see your trend</div></div>
+        </section>
+
+        <!-- Saved, reusable meals: build one (per-portion macros direct, or an
+             ingredient recipe summed and split by servings) and log it by the —
+             possibly fractional — portion. Writes /api/nutrition/meals*. -->
+        <section class="panel nut-meals-panel">
+          <div class="nut-head">
+            <h2>Saved meals <span class="nut-sub" id="nut-meals-sub"></span></h2>
+            <button class="nut-goals-btn" id="nut-meal-build-btn" title="build a reusable meal">＋ build a meal</button>
+          </div>
+
+          <div class="nut-builder" id="nut-builder" hidden>
+            <div class="nut-builder-top">
+              <label class="nut-bl">name<input id="mb-name" type="text" placeholder="e.g. Chicken pasta" autocomplete="off" /></label>
+              <label class="nut-bl">default meal<select id="mb-meal">
+                <option value="">—</option>
+                <option value="breakfast">breakfast</option>
+                <option value="lunch">lunch</option>
+                <option value="dinner">dinner</option>
+                <option value="snack">snack</option>
+              </select></label>
+            </div>
+
+            <div class="nut-mode" id="mb-mode">
+              <button type="button" class="active" id="mb-mode-ing" data-mode="ingredients">from ingredients</button>
+              <button type="button" id="mb-mode-mac" data-mode="macros">just macros</button>
+            </div>
+
+            <div class="nut-mb-ing" id="mb-ing">
+              <label class="nut-bl nut-bl-serv">servings this recipe makes<input id="mb-servings" type="number" step="any" min="0" value="1" /></label>
+              <div class="nut-ing-rows" id="mb-ing-rows"></div>
+              <button type="button" class="nut-ing-add" id="mb-ing-add">＋ add ingredient</button>
+              <div class="nut-mb-tot" id="mb-tot"></div>
+            </div>
+
+            <div class="nut-mb-mac" id="mb-mac" hidden>
+              <div class="nut-add-grid">
+                <label>kcal<input id="mb-cal" type="number" step="any" min="0" placeholder="0" /></label>
+                <label>protein<input id="mb-pro" type="number" step="any" min="0" placeholder="0" /></label>
+                <label>carbs<input id="mb-carb" type="number" step="any" min="0" placeholder="0" /></label>
+                <label>fat<input id="mb-fat" type="number" step="any" min="0" placeholder="0" /></label>
+              </div>
+              <div class="nut-mb-hint">macros for <b>one portion</b>.</div>
+            </div>
+
+            <div class="nut-mb-actions">
+              <button type="button" id="mb-save" class="nut-mb-save">Save meal</button>
+              <button type="button" id="mb-cancel" class="nut-mb-cancel">cancel</button>
+              <span class="nut-mb-msg" id="mb-msg"></span>
+            </div>
+          </div>
+
+          <div class="nut-meals-list" id="nut-meals-list"><div class="empty">no saved meals yet — build one to log it by the portion</div></div>
+        </section>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== BODY ===================== -->
+    <!-- Non-AI explorer: reads/writes /api/body/* directly, no model in the loop.
+         Weight/height → BMI; steps + workouts → active energy expenditure; with
+         food intake → energy balance. Steps can be typed here or pushed from a
+         health feed (Health Connect via the phone) into /api/body/steps. -->
+    <section class="view" id="view-body">
+      <div class="body-wrap">
+        <section class="panel body-day">
+          <div class="body-head">
+            <h2>Body <span class="body-sub" id="body-sub"></span></h2>
+          </div>
+
+          <div class="body-daybar">
+            <button class="body-nav" id="body-prev" title="previous day">‹</button>
+            <span class="body-date" id="body-date"></span>
+            <button class="body-nav" id="body-next" title="next day">›</button>
+            <button class="body-today" id="body-today" title="jump to today">today</button>
+          </div>
+
+          <div class="body-stat" id="body-stat"></div>
+
+          <div class="body-bmi-label">BMI</div>
+          <div class="body-bmi" id="body-bmi"><div class="empty">log your weight and height to see your BMI</div></div>
+
+          <div class="body-energy-label">energy today</div>
+          <div class="body-energy" id="body-energy"><div class="empty">no steps, workouts or food logged for this day</div></div>
+        </section>
+
+        <section class="panel body-log">
+          <h2>Log measurements <span class="body-src" id="body-src" title="where this day's steps came from"></span></h2>
+          <form id="body-form" class="body-form">
+            <div class="body-form-grid">
+              <label>weight<span class="bu">kg</span><input id="body-weight" type="number" step="any" min="0" placeholder="82" /></label>
+              <label>height<span class="bu">cm</span><input id="body-height" type="number" step="any" min="0" placeholder="180" /></label>
+              <label>body fat<span class="bu">%</span><input id="body-fat" type="number" step="any" min="0" max="100" placeholder="18" /></label>
+              <label>muscle<span class="bu">kg</span><input id="body-muscle" type="number" step="any" min="0" placeholder="36" /></label>
+              <label>steps<span class="bu">today</span><input id="body-steps" type="number" step="1" min="0" placeholder="10000" /></label>
+            </div>
+            <button type="submit" id="body-save-btn">＋ Save for this day</button>
+          </form>
+
+          <div class="body-note" id="body-note">
+            <b>Health Connect feeds.</b> Type anything in above, or have it pushed
+            in automatically. <b>Steps</b> arrive as a running daily total on
+            <code>POST /api/body/steps</code> / the phone's <code>phone.steps</code>
+            feed, and drive your walking calorie burn. <b>Weight &amp; body
+            composition</b> (body-fat %, muscle mass) arrive on <code>phone.weight</code>
+            from a smart scale — a <b>Renpho</b> syncing to <b>Health Connect</b> — so
+            each weigh-in lands here without any typing. Body fat and muscle are a
+            per-day scale reading (they don't carry forward like height does).
+          </div>
+
+          <div class="body-trend-head">
+            <span class="body-trend-label">weight</span>
+            <div class="body-range" id="body-range">
+              <button data-days="30" class="active">30d</button>
+              <button data-days="90">90d</button>
+            </div>
+          </div>
+          <div class="body-trend" id="body-trend"><div class="empty">log your weight to see the trend</div></div>
+        </section>
+      </div>
+    </section>
+
+    <!-- ===================== HEALTH ===================== -->
+    <!-- Non-AI explorer: reads/writes /api/health/* directly, no model in the
+         loop. Sleep (+stages), resting HR, HRV, SpO2, respiratory rate per day,
+         and a derived 0–100 readiness score (a heuristic computed in the store
+         from sleep-vs-8h + HRV/resting-HR vs their trailing baseline). Fed by the
+         phone's Health Connect reader (phone.health → POST /api/health) once the
+         Fitbit Air is syncing, or typed in here. Same date-nav pattern as Body. -->
+    <section class="view" id="view-health">
+      <div class="hl-wrap">
+        <section class="panel hl-day">
+          <div class="hl-head">
+            <h2>Health <span class="hl-sub" id="hl-sub"></span></h2>
+          </div>
+
+          <div class="hl-daybar">
+            <button class="hl-nav" id="hl-prev" title="previous day">‹</button>
+            <span class="hl-date" id="hl-date"></span>
+            <button class="hl-nav" id="hl-next" title="next day">›</button>
+            <button class="hl-today" id="hl-today" title="jump to today">today</button>
+          </div>
+
+          <div class="hl-stat" id="hl-stat"></div>
+
+          <div class="hl-read-label">readiness <span class="hl-hint">— Continuum's own 0–100 heuristic from sleep + HRV + resting HR vs your baseline</span></div>
+          <div class="hl-read" id="hl-read"><div class="empty">no readings for this day — readiness needs sleep or vitals</div></div>
+
+          <div class="hl-sleep-label">sleep</div>
+          <div class="hl-sleep" id="hl-sleep"><div class="empty">no sleep logged for this day</div></div>
+
+          <div class="hl-vitals-label">vitals</div>
+          <div class="hl-vitals" id="hl-vitals"><div class="empty">no vitals logged for this day</div></div>
+        </section>
+
+        <section class="panel hl-log">
+          <h2>Log recovery <span class="hl-src" id="hl-src" title="where this day's data came from"></span></h2>
+          <form id="hl-form" class="hl-form">
+            <div class="hl-form-grid">
+              <label>sleep<span class="hl-field"><input id="hl-sleep-h" type="number" step="any" min="0" placeholder="7.5" /><span class="hu">h</span></span></label>
+              <label>in bed<span class="hl-field"><input id="hl-bed-h" type="number" step="any" min="0" placeholder="8" /><span class="hu">h</span></span></label>
+              <label>resting HR<span class="hl-field"><input id="hl-rhr" type="number" step="any" min="0" placeholder="56" /><span class="hu">bpm</span></span></label>
+              <label>HRV<span class="hl-field"><input id="hl-hrv" type="number" step="any" min="0" placeholder="52" /><span class="hu">ms</span></span></label>
+              <label>SpO₂<span class="hl-field"><input id="hl-spo2" type="number" step="any" min="0" placeholder="97" /><span class="hu">%</span></span></label>
+              <label>resp rate<span class="hl-field"><input id="hl-resp" type="number" step="any" min="0" placeholder="14" /><span class="hu">/min</span></span></label>
+            </div>
+            <button type="submit" id="hl-save-btn">＋ Save for this day</button>
+          </form>
+
+          <div class="hl-note" id="hl-note">
+            <b>Sleep &amp; vitals from your Fitbit.</b> Type readings in above, or have
+            them pushed in automatically: the app accepts a day's recovery metrics on
+            <code>POST /api/health</code> and on the phone's <code>phone.health</code>
+            feed, so the on-device <b>Health Connect</b> reader keeps this current from
+            whatever your Fitbit Air (or any wearable) writes — no typing. <b>Readiness</b>
+            is Continuum's own 0–100 heuristic, computed here from the raw signals
+            (Fitbit's own score is Premium-only and never reaches Health Connect).
+          </div>
+
+          <div class="hl-trend-head">
+            <span class="hl-trend-label">readiness</span>
+            <div class="hl-range" id="hl-range">
+              <button data-days="7">7d</button>
+              <button data-days="30" class="active">30d</button>
+              <button data-days="90">90d</button>
+            </div>
+          </div>
+          <div class="hl-trend" id="hl-trend"><div class="empty">log sleep &amp; vitals to see your readiness trend</div></div>
+        </section>
+      </div>
+    </section>
+
+    <!-- ===================== FLASHCARDS ===================== -->
+    <!-- Non-AI study tool: reads/writes /api/flashcards/* directly, no model in
+         the study loop. Swedish vocab on SM-2 - cards carry an inflection table
+         and per-form audio, and group by source + set rather than one flat deck.
+         The same cards are written by the add_flashcard/remove_flashcard tools.
+         Import and audio are the only parts that need an API key; without one
+         those two controls hide themselves and the rest of the tab studies on. -->
+    <section class="view" id="view-flashcards">
+      <div class="fc-wrap">
+        <section class="panel fc-study-panel">
+          <div class="fc-head">
+            <h2>Flashcards <span class="fc-sub" id="fc-sub"></span></h2>
+            <div class="fc-filters">
+              <select id="fc-bucket" class="fc-deck" title="which source and set to study"></select>
+              <select id="fc-tag" class="fc-deck" title="limit to one word type"></select>
+            </div>
+          </div>
+          <div class="fc-stats" id="fc-stats"></div>
+
+          <!-- launcher: pick direction, mode and size, then start -->
+          <div class="fc-launch" id="fc-launch">
+            <div class="fc-opt">
+              <span class="fc-opt-label">Direction</span>
+              <div class="fc-seg" id="fc-dir">
+                <button type="button" data-v="sv-en" class="active">Swedish &#8594; English</button>
+                <button type="button" data-v="en-sv">English &#8594; Swedish</button>
+                <button type="button" data-v="mixed">Mixed</button>
+              </div>
+            </div>
+            <!-- Multi-select, and a card picks a random VALID one each time it
+                 comes up: seeing the same word four different ways is the point.
+                 Types the card can't support (no example sentence, no gender, no
+                 audio) are skipped for that card rather than shown broken. -->
+            <div class="fc-opt">
+              <span class="fc-opt-label">Question types</span>
+              <div class="fc-chips" id="fc-mode">
+                <button type="button" data-v="flip" class="on">&#128260; Flip card</button>
+                <button type="button" data-v="write" class="on">&#9000;&#65039; Type answer</button>
+                <button type="button" data-v="choice" class="on">&#9776; Multiple choice</button>
+                <button type="button" data-v="match" class="on">&#128279; Matching</button>
+                <button type="button" data-v="listen" class="on">&#128266; Listening</button>
+                <button type="button" data-v="gender" class="on">&#9878;&#65039; en / ett</button>
+                <button type="button" data-v="cloze" class="on">&#9633; Fill blank</button>
+                <button type="button" data-v="forms" class="on">&#127760; Inflections</button>
+              </div>
+            </div>
+            <div class="fc-opt">
+              <span class="fc-opt-label">Cards</span>
+              <div class="fc-seg" id="fc-count">
+                <button type="button" data-v="10">10</button>
+                <button type="button" data-v="20" class="active">20</button>
+                <button type="button" data-v="40">40</button>
+              </div>
+            </div>
+            <label class="fc-dueonly"><input type="checkbox" id="fc-dueonly" /> only cards due for review</label>
+            <label class="fc-dueonly"><input type="checkbox" id="fc-autoplay" checked /> play audio automatically</label>
+            <button class="fc-start" id="fc-start">&#9654; Start studying</button>
+          </div>
+
+          <!-- an in-progress session; the stage holds whichever mode is running -->
+          <div class="fc-session" id="fc-session" hidden>
+            <div class="fc-progress"><span id="fc-prog-bar"></span></div>
+            <div class="fc-prog-label" id="fc-prog-label"></div>
+            <div class="fc-stage" id="fc-stage"></div>
+            <button class="fc-quit" id="fc-quit">&#10005; end session</button>
+          </div>
+        </section>
+
+        <section class="panel fc-manage">
+          <!-- Import: paste a word list, get drafts, check them, then save.
+               The drafts are deliberately not stored until Jake says so. -->
+          <div class="fc-imp" id="fc-imp" hidden>
+            <h2>Import a word list</h2>
+            <textarea id="fc-imp-text" rows="4" placeholder="paste words, one per line &#8212; 'bok - book' or just 'bok'"></textarea>
+            <div class="fc-add-row">
+              <input id="fc-imp-source" placeholder="source (e.g. Rivstart)" autocomplete="off" />
+              <input id="fc-imp-set" placeholder="set (e.g. Kap 3)" autocomplete="off" />
+            </div>
+            <button type="button" id="fc-imp-btn">&#10024; Build cards</button>
+            <div class="fc-imp-msg" id="fc-imp-msg"></div>
+            <div class="fc-imp-preview" id="fc-imp-preview" hidden></div>
+          </div>
+
+          <h2>Add a card</h2>
+          <div class="fc-add">
+            <input id="fc-add-sv" placeholder="Swedish &#8212; e.g. hej" autocomplete="off" />
+            <input id="fc-add-en" placeholder="English &#8212; e.g. hello" autocomplete="off" />
+            <input id="fc-add-notes" placeholder="note / hint (optional)" autocomplete="off" />
+            <div class="fc-add-row">
+              <input id="fc-add-source" placeholder="source (optional)" autocomplete="off" />
+              <input id="fc-add-set" placeholder="set (optional)" autocomplete="off" />
+              <button type="button" id="fc-add-btn">+ Add</button>
+            </div>
+            <div class="fc-add-msg" id="fc-add-msg"></div>
+          </div>
+
+          <div class="fc-list-label">
+            your cards <span id="fc-list-count"></span>
+            <button type="button" class="fc-voice-btn" id="fc-voice-btn" hidden></button>
+          </div>
+          <div class="fc-list" id="fc-list"><div class="empty">no cards yet &#8212; add one above&#8230;</div></div>
+        </section>
+      </div>
+    </section>
+
+    <!-- ===================== ALARMS ===================== -->
+    <!-- Non-AI manager: reads/writes /api/alarms/* directly, no model in the loop.
+         Real wake-up alarms live on the phone (it rings them via AlarmManager even
+         while the desktop is asleep), so this whole tab needs the phone connected. -->
+    <section class="view" id="view-alarms">
+      <div class="alarm-wrap">
+        <section class="panel alarm-list-panel">
+          <div class="alarm-head">
+            <h2>Alarms <span class="alarm-sub" id="alarm-sub"></span></h2>
+            <button class="alarm-refresh" id="alarm-refresh" title="re-read the phone's alarms">⟳</button>
+          </div>
+          <div class="alarm-list" id="alarm-list"><div class="empty">loading…</div></div>
+        </section>
+
+        <section class="panel alarm-new-panel">
+          <h2>New alarm</h2>
+          <form id="alarm-form" class="alarm-form">
+            <div class="alarm-time-row">
+              <input id="alarm-time" type="time" class="alarm-time" value="07:00" required />
+              <input id="alarm-label" type="text" class="alarm-label" placeholder="label (e.g. Wake up)" />
+            </div>
+
+            <div class="alarm-presets" id="alarm-presets">
+              <button type="button" data-preset="once" class="active">Once</button>
+              <button type="button" data-preset="daily">Daily</button>
+              <button type="button" data-preset="weekdays">Weekdays</button>
+              <button type="button" data-preset="weekends">Weekends</button>
+            </div>
+
+            <div class="alarm-days" id="alarm-days">
+              <button type="button" data-day="0">Mon</button>
+              <button type="button" data-day="1">Tue</button>
+              <button type="button" data-day="2">Wed</button>
+              <button type="button" data-day="3">Thu</button>
+              <button type="button" data-day="4">Fri</button>
+              <button type="button" data-day="5">Sat</button>
+              <button type="button" data-day="6">Sun</button>
+            </div>
+            <div class="alarm-days-hint" id="alarm-days-hint">no days picked → rings once, at the next 07:00</div>
+
+            <button type="submit" id="alarm-save-btn">＋ Set alarm</button>
+            <div class="alarm-msg" id="alarm-msg"></div>
+          </form>
+
+          <div class="alarm-note">
+            <b>How these ring.</b> The alarm is scheduled on your <b>phone</b>, so it
+            fires even if this desktop is asleep or off. It rings over silent/DND at
+            your phone's <b>alarm volume — or 50%, whichever is higher</b> (raised
+            only for the alarm, then put back), and can snooze
+            <span id="alarm-snooze-min">9</span> min. Setting one needs the phone
+            connected.
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <!-- ===================== ACTIVITY ===================== -->
+    <!-- Non-AI explorer: reads /api/activity/* directly, no model in the loop.
+         Desktop foreground + phone screen sessions, from the local timeline. -->
+    <section class="view" id="view-activity">
+      <div class="act-wrap">
+        <section class="panel act-overview">
+          <div class="act-head">
+            <h2>Activity <span class="act-sub" id="act-sub"></span></h2>
+            <div class="act-range" id="act-range">
+              <button data-days="7" class="active">7d</button>
+              <button data-days="30">30d</button>
+            </div>
+          </div>
+          <div class="act-week-head"><span>daily active time — <b class="act-dt-desk">desktop</b> · <b class="act-dt-phone">phone</b> (tap a day)</span></div>
+          <div class="act-week" id="act-week"><div class="empty">no activity yet — the timeline builds as you use your devices</div></div>
+
+          <div class="act-daybar">
+            <button class="act-nav" id="act-prev" title="previous day">‹</button>
+            <span class="act-date" id="act-date"></span>
+            <button class="act-nav" id="act-next" title="next day">›</button>
+            <button class="act-today" id="act-today" title="jump to today">today</button>
+          </div>
+
+          <!-- Which body to look at. Filters the tiles, timeline, app bars and
+               segment list to one device (or both). -->
+          <div class="act-devs" id="act-devs">
+            <button data-dev="all" class="active">Both</button>
+            <button data-dev="desktop">🖥 Desktop</button>
+            <button data-dev="phone">📱 Phone</button>
+          </div>
+
+          <div class="act-stat" id="act-stat"></div>
+
+          <div class="act-tl-wrap">
+            <div class="act-tl">
+              <div class="act-tl-row" id="act-row-desktop"><button class="act-tl-label" data-dev="desktop" title="show only desktop">🖥</button><div class="act-track" id="act-track-desktop"></div></div>
+              <div class="act-tl-row" id="act-row-phone"><button class="act-tl-label" data-dev="phone" title="show only phone">📱</button><div class="act-track" id="act-track-phone"></div></div>
+            </div>
+            <div class="act-hours" id="act-hours"></div>
+          </div>
+
+          <div class="act-apps-label">time by app <span class="act-hint">— click an app to see it across days</span></div>
+          <div class="act-apps" id="act-apps"><div class="empty">no activity recorded for this day yet</div></div>
+
+          <div class="act-seg-label">what happened, in order</div>
+          <div class="act-segs" id="act-segs"></div>
+
+          <!-- App drill-down: one app's per-day usage across the selected range,
+               opened by clicking an app bar or a segment. Overlays the panel. -->
+          <div class="act-detail" id="act-detail" hidden>
+            <div class="act-detail-head">
+              <button class="act-detail-close" id="act-detail-close">‹ back</button>
+              <span class="act-detail-title" id="act-detail-title"></span>
+            </div>
+            <div class="act-stat" id="act-detail-stat"></div>
+            <div class="act-detail-chart-label">daily usage <span class="act-hint">— click a day to open it</span></div>
+            <div class="act-detail-chart" id="act-detail-chart"></div>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <!-- ===================== BUDGET ===================== -->
+    <!-- Daily allowances over the Activity timeline. The numbers here are read
+         from the same segments the Activity tab draws, so the two can't drift.
+         Everything is rendered by loadBudget(); the markup is just the frame. -->
+    <section class="view" id="view-budget">
+      <section class="panel">
+        <div class="act-head">
+          <h2>Budget <span class="act-sub" id="bud-sub"></span></h2>
+        </div>
+        <div class="bud-cats" id="bud-cats"><div class="empty">loading…</div></div>
+      </section>
+
+      <section class="panel">
+        <div class="act-head"><h2>Today <span class="act-sub">warnings, grace, overrides</span></h2></div>
+        <div class="bud-events" id="bud-events"></div>
+      </section>
+
+      <section class="panel">
+        <div class="act-head">
+          <h2>What counts <span class="act-sub" id="bud-rules-sub"></span></h2>
+          <button class="act-today" id="bud-rules-toggle">show</button>
+        </div>
+        <!-- Hidden by default: it's a long list and it's reference, not a
+             decision. But it must be *reachable* — a budget you can't inspect is
+             a budget you stop trusting the first time a number looks wrong. -->
+        <div class="bud-rules" id="bud-rules" hidden></div>
+      </section>
+    </section>
+
+  </main>
+
+  <div id="toasts" aria-live="polite" aria-atomic="false"></div>
+
+  <script src="/static/app.js"></script>
+  <script src="/static/sw-register.js"></script>
+</body>
+</html>

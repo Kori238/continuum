@@ -1,0 +1,187 @@
+/* Phone layout. Kept in its own file rather than folded into app.css so the
+   desktop stylesheet (and any local theming of it) stays untouched.
+
+   app.css already collapses its grids at 1000px, which covers tablets. This
+   file handles an actual phone: ~412 CSS px, one thumb, a gesture bar at the
+   bottom and a browser chrome that changes height as you scroll. */
+
+@media (max-width: 640px) {
+
+  /* app.css sizes the view shell with calc(100vh - 61px), a hardcoded topbar
+     height that stops being true the moment the header wraps. Drive the
+     height from a flex column instead, and use dvh so the layout does not
+     jump when the address bar hides.
+
+     The height must be *definite*, not a minimum. With `min-height` the body
+     grows to fit its content, so `#view-chat { height: 100% }` below resolved
+     against an auto-height parent and became auto too — the chat panel grew to
+     the height of the whole transcript and pushed the composer some twenty
+     thousand pixels below the fold. Fixing the shell height and letting .views
+     be the only scroller is what makes the input stay put. */
+  html { height: 100%; }
+  body {
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .topbar {
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 12px;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--bg);
+    /* Must go. A backdrop-filter makes the element a containing block for its
+       position:fixed descendants, so the tab strip below — which asks to be
+       fixed to the bottom of the *screen* — was silently pinning itself to the
+       bottom of this header instead, on top of the status pills. The blur is
+       decoration; the tab bar is navigation. */
+    backdrop-filter: none;
+  }
+  .brand { gap: 9px; }
+  .logo { font-size: 22px; }
+  .title { font-size: 16px; }
+  .subtitle { display: none; }          /* "personal operating system" — nice, not load-bearing */
+
+  /* Four status pills wrapped into three rows and took 156px off the top of a
+     915px screen — a third of the chat thread spent on things that are green
+     almost always. One swipeable row instead; the leftmost pill is the
+     connection, which is the only one worth a glance. */
+  .status {
+    gap: 6px;
+    flex: 1 1 100%;
+    min-width: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .status::-webkit-scrollbar { display: none; }
+  .pill { font-size: 10.5px; padding: 4px 8px; gap: 5px; flex: 0 0 auto; }
+  .pill .dot { width: 7px; height: 7px; }
+
+  /* Tabs move to the bottom. Six targets along the top edge of a 6.7" phone
+     are out of thumb reach; along the bottom they are where the hand already
+     is. The strip scrolls sideways rather than cramming six labels into
+     412px, and Chat/Routine are first so the common ones need no scroll. */
+  .tabnav {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 30;
+    gap: 2px;
+    /* the desktop bar wraps; the phone bar is one sideways-scrolling row */
+    flex-wrap: nowrap;
+    padding: 5px 8px calc(5px + env(safe-area-inset-bottom));
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+    border-bottom: none;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tabnav::-webkit-scrollbar { display: none; }
+  .tabnav .tab {
+    flex: 0 0 auto;
+    min-height: 44px;                   /* the usual floor for a touch target */
+    padding: 8px 14px;
+    font-size: 12.5px;
+  }
+
+  .views {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 12px 12px calc(66px + env(safe-area-inset-bottom));
+  }
+
+  /* Most views become one tall scrolling column. Their desktop rules pin
+     height:100% and then split it between stacked panels, which leaves every
+     panel too short to read on a phone. */
+  .view { height: auto; }
+  .routine-wrap, .state-wrap, .memory-wrap, .perf-wrap,
+  .workout-wrap, .nut-wrap, .body-wrap, .hl-wrap, .alarm-wrap { height: auto; gap: 12px; }
+
+  /* app.css already collapses these to one column, but a bare `1fr` track still
+     refuses to go below its content's min-content width — so one wide table row
+     or unwrappable label dragged the whole Routine page 160px off the side of
+     the phone. minmax(0, …) is what actually lets a track be narrower than what
+     is in it; the same reasoning as min-width:0 on a flex item. */
+  .routine-wrap, .state-wrap, .memory-wrap, .perf-wrap,
+  .workout-wrap, .nut-wrap, .body-wrap, .hl-wrap, .alarm-wrap { grid-template-columns: minmax(0, 1fr); }
+  .view .panel, .routine-side, .state-side, .memory-side, .nut-right { min-width: 0; }
+  .state-side .fabric { max-height: none; }
+  #view-messages .messages { height: auto; }
+  .conv-list { max-height: 45vh; }
+
+  /* Chat and Dev are the exception: they keep a bounded height so the thread
+     scrolls under a composer that stays put, the way a messaging app behaves.
+     Page-scrolling these would push the input off-screen mid-conversation. */
+  #view-chat { height: 100%; }
+
+  /* min-width:0 is the load-bearing half of this rule. A flex item defaults to
+     min-width:auto, i.e. "never shrink below your content", so one unwrappable
+     row inside the panel drags the panel wider than the phone and the whole
+     chat slides off-centre. Only the visible clipping from body{overflow:hidden}
+     hides how far. */
+  #view-chat .console { max-width: none; min-width: 0; }
+
+  .panel { padding: 12px; }
+  .conv-head { flex-wrap: wrap; gap: 6px; min-width: 0; }
+
+  /* The conversation chips wrap on desktop, which on a phone stacked six rows
+     deep and left the actual conversation 236px tall — the switcher was bigger
+     than the thing being switched. One row that swipes sideways instead. */
+  .conv-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+    min-width: 0;
+    /* The strip is also a flex *item* of the panel column. Making it scrollable
+       drops its automatic minimum height to zero, so it volunteered to absorb
+       the panel's entire overflow and crushed itself to 2.5px. The thread is
+       the thing that should give. */
+    flex: 0 0 auto;
+  }
+  .conv-tabs::-webkit-scrollbar { display: none; }
+  .conv-tab { flex: 0 0 auto; max-width: 60vw; }
+
+  /* "Add a routine item" is a time field and two non-shrinking selects on one
+     line. At 16px (see below — Android demands it) that row needs 546px and
+     there are 362. Let it wrap. */
+  .rt-form-row { flex-wrap: wrap; }
+  .rt-form-row select { flex: 1 1 auto; min-width: 0; }
+
+  /* Android zooms the viewport when a field under 16px takes focus, and never
+     zooms back out. */
+  input, textarea, select { font-size: 16px; }
+  .tabnav .tab, .conv-btn, button { font-family: inherit; }
+  #prompt { min-height: 72px; }
+
+  /* ---- Life explorer tabs in portrait: Workouts / Nutrition / Body / Health.
+     All four are two-column on desktop and already stack to one column at
+     1000px, but three things still broke on a portrait phone:
+
+     1. .nut-right is a plain div (not a .panel), so the min-width:0 above never
+        reached it and its min-content shoved the whole Nutrition tab sideways.
+        It also kept height:100% + its own overflow-y scroll — a nested-scroll
+        trap on a phone. Let it size to content and flow with the page. */
+  .nut-right { height: auto; min-height: 0; overflow: visible; padding-right: 0; }
+
+  /* 2. The entry forms kept desktop's dense grids — 4-across for the food
+        logger, 3-across for Body/Health — which crush the fields at a phone's
+        width (the Health inputs Jake already flagged as cramped). Drop the
+        wide ones to two columns; Body's three short numeric fields still fit,
+        just made overflow-safe. */
+  .hl-form-grid, .nut-add-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .body-form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+  /* 3. The explanatory notes carry long inline <code> (e.g. POST /api/health)
+        with no break points, which on its own can push the panel past the
+        screen edge. Let it break anywhere. */
+  .body-note code, .hl-note code { overflow-wrap: anywhere; }
+}

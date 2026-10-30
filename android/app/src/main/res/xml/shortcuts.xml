@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long-press the launcher icon to reach setup. The main screen is a full
+     Continuum window with no native chrome to hang a settings button on, so
+     this and the notification action are how you get back in. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="setup"
+        android:enabled="true"
+        android:shortcutShortLabel="@string/shortcut_setup">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="ai.continuum.phone"
+            android:targetClass="ai.continuum.phone.SetupActivity" />
+    </shortcut>
+</shortcuts>

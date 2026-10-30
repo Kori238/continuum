@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#101418</color>
+
+    <!-- Home-screen routine widget. Same near-black as the launcher icon so the
+         widget reads as part of the app, with a teal accent for the "when". -->
+    <color name="widget_bg">#101418</color>
+    <color name="widget_text">#F2F5F7</color>
+    <color name="widget_muted">#8A97A0</color>
+    <color name="widget_accent">#5FD0C4</color>
+    <color name="widget_track">#26303A</color>
+</resources>

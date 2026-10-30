@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- No action bar: MainActivity is a window onto Continuum's own UI, which
+         already has a header and a tab strip. A native title bar on top of that
+         would just be a second, emptier one. -->
+    <style name="Theme.Continuum" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:statusBarColor">#0a1519</item>
+        <item name="android:navigationBarColor">#0a1519</item>
+        <item name="android:windowBackground">#0a1519</item>
+    </style>
+</resources>

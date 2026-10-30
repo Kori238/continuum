@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Two nodes and the link between them: the desktop and the phone. Drawn as a
+     vector so there is no bitmap set to keep in sync across densities. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:strokeColor="#7FD1C1"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:pathData="M40,54 L68,54" />
+    <path
+        android:fillColor="#7FD1C1"
+        android:pathData="M40,54m-11,0a11,11 0 1,0 22,0a11,11 0 1,0 -22,0" />
+    <path
+        android:fillColor="#F2F5F7"
+        android:pathData="M68,54m-8,0a8,8 0 1,0 16,0a8,8 0 1,0 -16,0" />
+</vector>
